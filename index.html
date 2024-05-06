@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 
 <meta charset="UTF-8">
-<title>Breakout box in a web worker with manual delay</title>
+<title>WebCodecs API demo: Encoding and Decoding</title>
 <style>
   button {
     background-color: #555555;
@@ -18,8 +18,6 @@
 
 <button id="record" width=1280 onclick="onButtonClicked()">Record</button>
 <video id ="src" autoplay muted width=1280 height=720></video>
-
-<footer>Adapted from https://w3c.github.io/webcodecs/samples/capture-to-file/capture-to-file.html</footer>
 <script>
     let mimeType = 'video/webm;codecs=vp9,opus';
     let video = document.getElementById('src');
@@ -61,18 +59,6 @@
             };
             mediaRecorder.start();
             break;
-          case 'done':
-            mediaRecorder.stop();
-            setTimeout(() => {
-                const blob = new Blob(chunks, {type: mimeType});
-                const blobUrl = URL.createObjectURL(blob);
-                link.href = blobUrl;
-            }, 2000);
-            const link = document.createElement('a'); 
-            link.download = "foo.webm";
-            link.innerHTML = "Click here to download the file";
-            document.body.appendChild(link);
-            break;
         }
       });
 
@@ -94,7 +80,16 @@
     function stopRecording() {
       console.assert(button.innerText == 'Stop');
       button.innerText = 'Record';
-      encodeWorker.postMessage({ type: 'stop'});
+      mediaRecorder.stop();
+      setTimeout(() => {
+          const blob = new Blob(chunks, {type: mimeType});
+          const blobUrl = URL.createObjectURL(blob);
+          link.href = blobUrl;
+      }, 2000);
+      const link = document.createElement('a'); 
+      link.download = "foo.webm";
+      link.innerHTML = "Click here to download the file";
+      document.body.appendChild(link);
       return ;
     }
 
@@ -121,4 +116,3 @@
 
     document.body.onload = main;
 </script>
-
