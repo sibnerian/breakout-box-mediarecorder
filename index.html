@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+
+<meta charset="UTF-8">
+<title>Breakout box in a web worker with manual delay</title>
+<style>
+  button {
+    background-color: #555555;
+    border: 2px;
+    border-radius: 2px;
+    color: white;
+    padding: 15px 32px;
+    width: 1280px;
+    text-align: center;
+    display: block;
+    font-size: 16px;
+  }
+</style>
+
+<button id="record" width=1280 onclick="onButtonClicked()">Record</button>
+<video id ="src" autoplay muted width=1280 height=720></video>
+
+<footer>Adapted from https://w3c.github.io/webcodecs/samples/capture-to-file/capture-to-file.html</footer>
+<script>
+    let mimeType = 'video/webm;codecs=vp9,opus';
+    let video = document.getElementById('src');
+    let button = document.getElementById('record');
+    let encodeWorker = null;
+    let stream = null;
+    let videoTrack = null;
+    let audioTrack = null;
+    let mediaRecorder = null;
+    let chunks = null;
+
+    async function startRecording() {
+      console.assert(button.innerText == 'Record');
+      button.disabled = true;
+
+      videoTrack = stream.getVideoTracks()[0];
+      audioTrack = stream.getAudioTracks()[0];
+      let trackSettings = videoTrack.getSettings();
+      let trackProcessor = new MediaStreamTrackProcessor(videoTrack);
+      let frameStream = trackProcessor.readable;
+
+      // Encoder I/O and file writing happens in a Worker to keep the UI
+      // responsive.
+      encodeWorker = new Worker('./worker.js' + '?' + Math.random());
+
+      encodeWorker.addEventListener('message', function handleMessageFromWorker(e) {
+        switch (e.data.type) {
+          case 'ack':
+            const {mirroredReadable} = e.data;
+            const videoTrackGenerator = new MediaStreamTrackGenerator({
+              kind: 'video',
+            });
+            mirroredReadable.pipeTo(videoTrackGenerator.writable);
+            const recordStream = new MediaStream([audioTrack, videoTrackGenerator]);
+            chunks = [];
+            mediaRecorder = new MediaRecorder(recordStream, {mimeType});
+            mediaRecorder.ondataavailable = (e) => {
+              chunks.push(e.data);
+            };
+            mediaRecorder.start();
+            break;
+          case 'done':
+            mediaRecorder.stop();
+            setTimeout(() => {
+                const blob = new Blob(chunks, {type: mimeType});
+                const blobUrl = URL.createObjectURL(blob);
+                link.href = blobUrl;
+            }, 2000);
+            const link = document.createElement('a'); 
+            link.download = "foo.webm";
+            link.innerHTML = "Click here to download the file";
+            document.body.appendChild(link);
+            break;
+        }
+      });
+
+
+      // Tell the worker to start encoding the frames and writing the file.
+      // NOTE: transferring frameStream and reading it in the worker is more
+      // efficient than reading frameStream here and transferring VideoFrames
+      // individually. This allows us to entirely avoid processing frames on the
+      // main (UI) thread.
+      encodeWorker.postMessage({
+        type: 'start',
+        frameStream: frameStream,
+      }, [frameStream]);
+
+      button.innerText = 'Stop';
+      button.disabled = false;
+    }
+
+    function stopRecording() {
+      console.assert(button.innerText == 'Stop');
+      button.innerText = 'Record';
+      encodeWorker.postMessage({ type: 'stop'});
+      return ;
+    }
+
+    async function onButtonClicked() {
+      switch(button.innerText) {
+        case 'Record':
+          startRecording();
+          break;
+        case 'Stop':
+          stopRecording();
+          break;
+      }
+    };
+
+    async function main() {
+      let constraints = {
+        audio: true,
+        video: {width: 1280, height: 720, frameRate: 30}
+      };
+      stream = await window.navigator.mediaDevices.getUserMedia(constraints);
+      let video = document.getElementById('src');
+      video.srcObject = stream;
+    }
+
+    document.body.onload = main;
+</script>
+
