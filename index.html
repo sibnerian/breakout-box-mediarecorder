@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 
 <meta charset="UTF-8">
-<title>WebCodecs API demo: Encoding and Decoding</title>
+<title>Breakout box in a web worker with manual delay</title>
 <style>
   button {
     background-color: #555555;
@@ -14,14 +14,22 @@
     display: block;
     font-size: 16px;
   }
+  #delaycontainer, #delay {
+    padding: 12px;
+    font-size: 30px;
+  }
 </style>
 
 <button id="record" width=1280 onclick="onButtonClicked()">Record</button>
+
+<div id="delaycontainer">Delay Value (ms): <input type="number" id="delay" name="delay" min="0" max="650" value="0"/></div>
 <video id ="src" autoplay muted width=1280 height=720></video>
+<footer>Adapted from https://w3c.github.io/webcodecs/samples/capture-to-file/capture-to-file.html</footer>
 <script>
     let mimeType = 'video/webm;codecs=vp9,opus';
     let video = document.getElementById('src');
     let button = document.getElementById('record');
+    let delayInput = document.getElementById('delay');
     let encodeWorker = null;
     let stream = null;
     let videoTrack = null;
@@ -71,6 +79,7 @@
       encodeWorker.postMessage({
         type: 'start',
         frameStream: frameStream,
+        delayMs: Number(document.getElementById('delay').value),
       }, [frameStream]);
 
       button.innerText = 'Stop';
@@ -82,15 +91,14 @@
       button.innerText = 'Record';
       mediaRecorder.stop();
       setTimeout(() => {
+          const link = document.createElement('a'); 
           const blob = new Blob(chunks, {type: mimeType});
           const blobUrl = URL.createObjectURL(blob);
           link.href = blobUrl;
-      }, 2000);
-      const link = document.createElement('a'); 
-      link.download = "foo.webm";
-      link.innerHTML = "Click here to download the file";
-      document.body.appendChild(link);
-      return ;
+          link.download = "test.webm";
+          link.innerHTML = "Click here to download";
+          document.getElementById('delaycontainer').appendChild(link);
+      }, 500);
     }
 
     async function onButtonClicked() {
@@ -116,3 +124,4 @@
 
     document.body.onload = main;
 </script>
+
