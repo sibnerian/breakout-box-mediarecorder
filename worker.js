@@ -1,13 +1,12 @@
-const MANUALLY_INTRODUCED_DELAY_MS = 500;
-
-function createMirroringStreamTransformer() {
+function createMirroringStreamTransformer(delayMs) {
   let offscreenCanvas;
   return new TransformStream({
     transform: async (videoFrame, controller) => {
       const bitmap = await createImageBitmap(videoFrame);
       const timestamp = videoFrame.timestamp;
       videoFrame.close();
-      if (!offscreenCanvas ||
+      if (
+        !offscreenCanvas ||
         offscreenCanvas.width !== bitmap.width ||
         offscreenCanvas.height !== bitmap.height
       ) {
@@ -29,13 +28,22 @@ function createMirroringStreamTransformer() {
 
       setTimeout(() => {
         controller.enqueue(newFrame);
-      }, MANUALLY_INTRODUCED_DELAY_MS);
+      }, delayMs);
     },
   });
 }
 
-async function startRecording(frameStream) {
-  const mirroredReadable = frameStream.pipeThrough(createMirroringStreamTransformer());
+function getMirroredTransformReadable(inputVideoReadableStream, delayMs) {
+  return inputVideoReadableStream.pipeThrough(createMirroringStreamTransformer(delayMs));
+}
+
+let webmWriter = null;
+let frameReader = null;
+
+async function startRecording(frameStream, delayMs) {
+  let frameCounter = 0;
+
+  const mirroredReadable = getMirroredTransformReadable(frameStream, delayMs);
 
   self.postMessage({
     type: 'ack',
@@ -43,10 +51,19 @@ async function startRecording(frameStream) {
   }, [mirroredReadable]);
 }
 
+async function stopRecording() {
+  self.postMessage({
+    type: 'done',
+  });
+}
+
 self.addEventListener('message', function(e) {
   switch (e.data.type) {
     case 'start':
-      startRecording(e.data.frameStream);
+      startRecording(e.data.frameStream, e.data.delayMs);
+      break;
+    case 'stop':
+      stopRecording();
       break;
   }
 });
